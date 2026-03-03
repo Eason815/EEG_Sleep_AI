@@ -52,6 +52,7 @@ class SleepPredictorV1(BaseSleepPredictor):
         self.device = device if torch.cuda.is_available() else 'cpu'
         self.window_size = window_size
         self.model = None
+        self.recording_start_time = None  # 存储记录开始时间
     
     def load_model(self, model_class):
         """加载模型权重"""
@@ -75,6 +76,12 @@ class SleepPredictorV1(BaseSleepPredictor):
         """严格按照你 process.py 的逻辑"""
         # 1. 读取并裁剪
         raw = mne.io.read_raw_edf(edf_path, preload=True, verbose=False)
+        
+        # 提取记录开始时间
+        if raw.info['meas_date'] is not None:
+            self.recording_start_time = raw.info['meas_date'].isoformat()
+        else:
+            self.recording_start_time = None
         
         # 2. 通道选择
         if 'EEG Fpz-Cz' in raw.ch_names:
