@@ -51,11 +51,11 @@
           @click="switchMode('raw')">
           📈 原始数据
         </button>
-        <button 
+        <!-- <button 
           :class="{ active: displayMode === 'lite' }"
           @click="switchMode('lite')">
           ⚡ 轻量模式
-        </button>
+        </button> -->
       </div>
       
       <div ref="chartSleep" style="width: 100%; height: 400px;"></div>
@@ -156,8 +156,23 @@ export default {
     }
   },
   mounted() {
-    this.chartFull = echarts.init(this.$refs.chartFull)
-    this.chartSleep = echarts.init(this.$refs.chartSleep)
+    // 延迟初始化，确保DOM完全准备好
+    this.$nextTick(() => {
+      if (this.$refs.chartFull && this.$refs.chartSleep) {
+        this.chartFull = echarts.init(this.$refs.chartFull)
+        this.chartSleep = echarts.init(this.$refs.chartSleep)
+        console.log('图表初始化完成')
+        
+        // 如果已有数据，立即渲染
+        if (this.data) {
+          this.stats = this.sleepStats
+          this.qualityScore = this.data.quality_score
+          this.renderFullChart(this.data)
+          this.renderSleepChart(this.data)
+        }
+      }
+    })
+    
     window.addEventListener('resize', () => {
       this.chartFull?.resize()
       this.chartSleep?.resize()
@@ -182,6 +197,12 @@ export default {
     },
     
     renderFullChart(data) {
+      if (!this.chartFull) {
+        console.error('chartFull 未初始化')
+        return
+      }
+      
+      console.log('渲染完整图表，数据点数:', data.hypnogram_full?.length)
       const stageNames = ['清醒', 'REM', '浅睡', '深睡']
       
       this.chartFull.setOption({
@@ -253,6 +274,11 @@ export default {
     },
     
     renderSleepChart(data) {
+      if (!this.chartSleep) {
+        console.error('chartSleep 未初始化')
+        return
+      }
+      
       const stageNames = ['清醒', 'REM', '浅睡', '深睡']
       
       // 根据模式选择数据
@@ -271,6 +297,8 @@ export default {
           chartData = data.sleep_hypnogram_raw
           timeStep = 0.5
       }
+      
+      console.log('渲染核心睡眠图表，模式:', this.displayMode, '数据点数:', chartData?.length)
       
       this.chartSleep.setOption({
         title: {
