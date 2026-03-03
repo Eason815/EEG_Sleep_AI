@@ -137,6 +137,18 @@ export default {
         Light_ratio: hypnogram.filter(x => x === 2).length / total,
         Deep_ratio: hypnogram.filter(x => x === 3).length / total
       }
+    },
+    // 计算入睡时间（核心睡眠起点 + 1200秒 = +40个epoch，因为1个epoch=30秒）
+    sleepOnsetTime() {
+      if (!this.data) return ''
+      const epochIndex = this.data.sleep_onset_epoch + 40
+      return this.getTimeLabel(epochIndex, this.data.recording_start_time)
+    },
+    // 计算醒来时间（核心睡眠终点 - 1200秒 = -40个epoch，因为1个epoch=30秒）
+    wakeUpTime() {
+      if (!this.data) return ''
+      const epochIndex = this.data.sleep_offset_epoch - 40
+      return this.getTimeLabel(epochIndex, this.data.recording_start_time)
     }
   },
   watch: {
@@ -205,6 +217,31 @@ export default {
       console.log('渲染完整图表，数据点数:', data.hypnogram_full?.length)
       const stageNames = ['清醒', 'REM', '浅睡', '深睡']
       
+      // 动态计算标签间隔，确保显示合理数量的标签
+      const totalPoints = data.hypnogram_full.length
+      const targetLabels = 8 // 目标显示约8个标签
+      const labelInterval = Math.max(1, Math.floor(totalPoints / targetLabels))
+      
+      // 生成时间标签数组，避免末尾重影
+      const timeLabels = data.hypnogram_full.map((_, i) => {
+        // 检查是否是最后一个点
+        if (i === totalPoints - 1) {
+          // 如果最后一个点距离前一个标签太近（小于间隔的50%），则不显示
+          const lastLabelIndex = Math.floor((totalPoints - 1) / labelInterval) * labelInterval
+          if (totalPoints - 1 - lastLabelIndex < labelInterval * 0.5) {
+            return ''
+          }
+          return this.getTimeLabel(i, data.recording_start_time)
+        }
+        // 按间隔显示标签
+        if (i % labelInterval === 0) {
+          return this.getTimeLabel(i, data.recording_start_time)
+        }
+        return ''
+      })
+      
+      console.log('完整图表标签间隔:', labelInterval, '总标签数:', timeLabels.filter(l => l).length)
+      
       this.chartFull.setOption({
         title: {
           text: '完整睡眠记录',
@@ -236,14 +273,15 @@ export default {
         },
         xAxis: {
           type: 'category',
-          data: data.hypnogram_full.map((_, i) => {
-            if (i % 120 === 0) {
-              return this.getTimeLabel(i, data.recording_start_time)
-            }
-            return ''
-          }),
+          data: timeLabels,
           axisLine: { lineStyle: { color: '#ddd' } },
-          axisTick: { show: false }
+          axisTick: { show: false },
+          axisLabel: {
+            interval: 0, // 显示所有非空标签
+            rotate: 0,
+            fontSize: 11,
+            color: '#666'
+          }
         },
         yAxis: {
           type: 'value',
@@ -300,6 +338,44 @@ export default {
       
       console.log('渲染核心睡眠图表，模式:', this.displayMode, '数据点数:', chartData?.length)
       
+      // 动态计算标签间隔（改为8个标签以提升性能）
+      const totalPoints = chartData.length
+      const targetLabels = 8 // 目标显示约8个标签
+      const labelInterval = Math.max(1, Math.floor(totalPoints / targetLabels))
+      
+      // 生成时间标签数组，避免末尾重影
+      const timeLabels = chartData.map((_, i) => {
+        // 检查是否是最后一个点
+        if (i === totalPoints - 1) {
+          // 如果最后一个点距离前一个标签太近（小于间隔的50%），则不显示
+          const lastLabelIndex = Math.floor((totalPoints - 1) / labelInterval) * labelInterval
+          if (totalPoints - 1 - lastLabelIndex < labelInterval * 0.5) {
+            return ''
+          }
+          const actualIdx = data.sleep_onset_epoch + (this.displayMode === 'lite' ? i * 4 : i)
+          return this.getTimeLabel(actualIdx, data.recording_start_time)
+        }
+        // 按间隔显示标签
+        if (i % labelInterval === 0) {
+          const actualIdx = data.sleep_onset_epoch + (this.displayMode === 'lite' ? i * 4 : i)
+          return this.getTimeLabel(actualIdx, data.recording_start_time)
+        }
+        return ''
+      })
+      
+      console.log('核心睡眠图表标签间隔:', labelInterval, '总标签数:', timeLabels.filter(l => l).length)
+      
+      // 计算入睡和醒来时间在图表中的位置
+      // 注意：这里的索引是相对于chartData数组的，不是epoch数
+      const sleepOnsetIndex = 40 // 入睡时间：起点后40个epoch（1200秒 ÷ 30秒/epoch = 40）
+      const wakeUpIndex = (data.sleep_offset_epoch - data.sleep_onset_epoch) - 40 // 醒来时间：终点前40个epoch
+      
+      // 确保索引在有效范围内
+      const validSleepOnsetIndex = Math.min(Math.max(0, sleepOnsetIndex), totalPoints - 1)
+      const validWakeUpIndex = Math.min(Math.max(0, wakeUpIndex), totalPoints - 1)
+      
+      console.log('入睡时间索引:', validSleepOnsetIndex, '醒来时间索引:', validWakeUpIndex, '总数据点:', totalPoints)
+      
       this.chartSleep.setOption({
         title: {
           text: `核心睡眠区间 (${this.displayMode === 'smooth' ? '平滑' : this.displayMode === 'lite' ? '轻量' : '原始'})`,
@@ -332,15 +408,15 @@ export default {
         },
         xAxis: {
           type: 'category',
-          data: chartData.map((_, i) => {
-            const actualIdx = data.sleep_onset_epoch + (this.displayMode === 'lite' ? i * 4 : i)
-            if (actualIdx % 60 === 0) {
-              return this.getTimeLabel(actualIdx, data.recording_start_time)
-            }
-            return ''
-          }),
+          data: timeLabels,
           axisLine: { lineStyle: { color: '#ddd' } },
-          axisTick: { show: false }
+          axisTick: { show: false },
+          axisLabel: {
+            interval: 0, // 显示所有非空标签
+            rotate: 0,
+            fontSize: 11,
+            color: '#666'
+          }
         },
         yAxis: {
           type: 'value',
@@ -371,6 +447,39 @@ export default {
               { offset: 0, color: 'rgba(102, 126, 234, 0.3)' },
               { offset: 1, color: 'rgba(118, 75, 162, 0.1)' }
             ])
+          },
+          markLine: {
+            symbol: ['none', 'none'],
+            label: {
+              show: true,
+              position: 'end',
+              formatter: '{b}',
+              fontSize: 11,
+              color: '#333',
+              backgroundColor: 'rgba(255, 255, 255, 0.9)',
+              padding: [4, 8],
+              borderRadius: 4
+            },
+            data: [
+              {
+                name: `😴 入睡 ${this.sleepOnsetTime}`,
+                xAxis: validSleepOnsetIndex,
+                lineStyle: {
+                  color: '#48bb78',
+                  width: 2,
+                  type: 'dashed'
+                }
+              },
+              {
+                name: `😊 醒来 ${this.wakeUpTime}`,
+                xAxis: validWakeUpIndex,
+                lineStyle: {
+                  color: '#ed8936',
+                  width: 2,
+                  type: 'dashed'
+                }
+              }
+            ]
           }
         }]
       })
@@ -378,6 +487,8 @@ export default {
     
     getTimeLabel(epochIndex, startTime) {
       const minutes = epochIndex * 0.5
+      
+      // 如果没有提供开始时间，使用相对时间格式
       if (!startTime) {
         const hours = Math.floor(minutes / 60)
         const mins = Math.floor(minutes % 60)
@@ -385,25 +496,46 @@ export default {
       }
       
       try {
-        // 直接解析ISO时间字符串，不做地区转换
-        const timeMatch = startTime.match(/T(\d{2}):(\d{2}):(\d{2})/)
+        // 尝试多种时间格式解析
+        let startHour, startMinute
+        
+        // 格式1: ISO 8601 格式 (YYYY-MM-DDTHH:MM:SS)
+        let timeMatch = startTime.match(/T(\d{2}):(\d{2}):(\d{2})/)
         if (timeMatch) {
-          const startHour = parseInt(timeMatch[1])
-          const startMinute = parseInt(timeMatch[2])
-          
-          // 计算当前时间
-          const totalMinutes = startHour * 60 + startMinute + minutes
-          const currentHour = Math.floor(totalMinutes / 60) % 24
-          const currentMinute = Math.floor(totalMinutes % 60)
-          
-          return `${String(currentHour).padStart(2, '0')}:${String(currentMinute).padStart(2, '0')}`
+          startHour = parseInt(timeMatch[1])
+          startMinute = parseInt(timeMatch[2])
+        } else {
+          // 格式2: 简单时间格式 (HH:MM:SS 或 HH:MM)
+          timeMatch = startTime.match(/(\d{1,2}):(\d{2})/)
+          if (timeMatch) {
+            startHour = parseInt(timeMatch[1])
+            startMinute = parseInt(timeMatch[2])
+          } else {
+            // 格式3: 尝试使用 Date 对象解析
+            const date = new Date(startTime)
+            if (!isNaN(date.getTime())) {
+              startHour = date.getHours()
+              startMinute = date.getMinutes()
+            } else {
+              // 无法解析，使用相对时间
+              console.warn('无法解析时间格式:', startTime)
+              const hours = Math.floor(minutes / 60)
+              const mins = Math.floor(minutes % 60)
+              return `${hours}h${mins}m`
+            }
+          }
         }
         
-        // 备用方案
-        const hours = Math.floor(minutes / 60)
-        const mins = Math.floor(minutes % 60)
-        return `${hours}h${mins}m`
+        // 计算当前时间点
+        const totalMinutes = startHour * 60 + startMinute + minutes
+        const currentHour = Math.floor(totalMinutes / 60) % 24
+        const currentMinute = Math.floor(totalMinutes % 60)
+        
+        return `${String(currentHour).padStart(2, '0')}:${String(currentMinute).padStart(2, '0')}`
+        
       } catch (e) {
+        console.error('时间标签生成错误:', e, 'startTime:', startTime)
+        // 出错时使用相对时间格式
         const hours = Math.floor(minutes / 60)
         const mins = Math.floor(minutes % 60)
         return `${hours}h${mins}m`
