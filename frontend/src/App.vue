@@ -14,15 +14,29 @@
         <a href="#">历史记录</a>
         <a href="#">关于</a>
       </nav>
+      <div class="user-actions">
+        <template v-if="isAuthenticated">
+          <span class="user-greeting">欢迎，{{ username }}</span>
+          <button @click="logout" class="logout-btn">登出</button>
+        </template>
+        <template v-else>
+          <button @click="showLogin" class="auth-btn">登录</button>
+          <button @click="showRegister" class="auth-btn register">注册</button>
+        </template>
+      </div>
     </header>
 
     <!-- 主内容区 -->
     <main class="container">
-      <FileUpload @analysisComplete="handleAnalysisComplete" />
+      <Auth v-if="!isAuthenticated" @authenticated="handleAuth" :initialMode="authMode" ref="authComponent" />
       
-      <transition name="fade">
-        <Hypnogram v-if="resultData" :data="resultData" />
-      </transition>
+      <div v-else>
+        <FileUpload @analysisComplete="handleAnalysisComplete" @authExpired="handleAuthExpired" />
+        
+        <transition name="fade">
+          <Hypnogram v-if="resultData" :data="resultData" />
+        </transition>
+      </div>
     </main>
 
     <!-- 页脚 -->
@@ -35,21 +49,53 @@
 <script>
 import FileUpload from './components/FileUpload.vue'
 import Hypnogram from './components/Hypnogram.vue'
+import Auth from './components/Auth.vue'
 
 export default {
   name: 'App',
   components: {
     FileUpload,
-    Hypnogram
+    Hypnogram,
+    Auth
   },
   data() {
     return {
-      resultData: null
+      resultData: null,
+      isAuthenticated: !!localStorage.getItem('token'),
+      username: localStorage.getItem('username') || '',
+      authMode: 'login'  // 'login' 或 'register'
     }
   },
   methods: {
+    handleAuth(user) {
+      this.isAuthenticated = true
+      this.username = user || '用户'
+      localStorage.setItem('username', this.username)
+    },
     handleAnalysisComplete(data) {
       this.resultData = data
+    },
+    handleAuthExpired() {
+      this.isAuthenticated = false
+      this.username = ''
+      this.resultData = null
+      localStorage.removeItem('token')
+      localStorage.removeItem('username')
+    },
+    logout() {
+      this.isAuthenticated = false
+      this.username = ''
+      this.resultData = null
+      localStorage.removeItem('token')
+      localStorage.removeItem('username')
+    },
+    showLogin() {
+      this.authMode = 'login'
+      this.isAuthenticated = false
+    },
+    showRegister() {
+      this.authMode = 'register'
+      this.isAuthenticated = false
     }
   }
 }
@@ -109,6 +155,61 @@ body {
 .nav-links a:hover,
 .nav-links a.active {
   color: #667eea;
+}
+
+/* 用户操作区 */
+.user-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.user-greeting {
+  color: #667eea;
+  font-weight: 500;
+}
+
+.auth-btn {
+  padding: 0.5rem 1.25rem;
+  border: 2px solid #667eea;
+  background: transparent;
+  color: #667eea;
+  border-radius: 8px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.auth-btn:hover {
+  background: #667eea;
+  color: white;
+}
+
+.auth-btn.register {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  color: white;
+}
+
+.auth-btn.register:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.logout-btn {
+  padding: 0.5rem 1.25rem;
+  border: 2px solid #e53e3e;
+  background: transparent;
+  color: #e53e3e;
+  border-radius: 8px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.logout-btn:hover {
+  background: #e53e3e;
+  color: white;
 }
 
 /* 主容器 */

@@ -2,10 +2,28 @@ from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from models.response import APIResponse, AnalysisResult, SleepStats
+from models.user import User, SleepRecord
 from services.analyzer import SleepAnalyzer
 from train import SleepStageNetV8
 from pathlib import Path
 import logging
+from database import engine, SessionLocal, Base, get_db
+from auth import get_password_hash, verify_password, create_access_token, decode_access_token
+from fastapi import Depends, Header, Form
+from sqlalchemy.orm import Session
+from fastapi.security import OAuth2PasswordBearer
+from fastapi.responses import JSONResponse
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/login")
+
+def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    payload = decode_access_token(token)
+    if not payload:
+        raise HTTPException(status_code=401, detail="无效或过期的token")
+    user = db.query(User).filter(User.username == payload.get("sub")).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="用户不存在")
+    return user
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -33,6 +51,10 @@ analyzer: SleepAnalyzer = None
 @app.on_event("startup")
 async def startup_event():
     global analyzer
+    
+    # 初始化数据库表
+    Base.metadata.create_all(bind=engine)
+    
     # 确保路径是相对于 main.py 的正确位置
     BASE_DIR = Path(__file__).resolve().parent
     MODEL_PATH = str(BASE_DIR / "data" / "model021101.pth")
@@ -65,7 +87,7 @@ async def health_check():
 
 
 @app.post("/api/analyze", response_model=APIResponse)
-async def analyze_sleep(file: UploadFile = File(...)):
+async def analyze_sleep(file: UploadFile = File(...), current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """
     睡眠分析接口
     
@@ -101,6 +123,15 @@ async def analyze_sleep(file: UploadFile = File(...)):
         # 4. 执行分析
         logger.info(f"开始分析文件: {file.filename}")
         result = await analyzer.analyze_edf(content, file.filename)
+        
+        # 存入数据库
+        new_record = SleepRecord(
+            user_id=current_user.id,
+            filename=file.filename,
+            result_json=result.json()
+        )
+        db.add(new_record)
+        db.commit()
         
         logger.info(f"✅ 分析完成，质量分数: {result.quality_score}")
         
@@ -165,6 +196,28 @@ async def analyze_mock(file: UploadFile = File(...)):
         )
     )
 
+
+@app.post("/api/register")
+async def register(username: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
+    if db.query(User).filter(User.username == username).first():
+        raise HTTPException(status_code=400, detail="用户名已存在")
+    new_user = User(username=username, password_hash=get_password_hash(password))
+    db.add(new_user)
+    db.commit()
+    return {"message": "注册成功"}
+
+@app.post("/api/login")
+async def login(username: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.username == username).first()
+    if not user or not verify_password(password, user.password_hash):
+        raise HTTPException(status_code=401, detail="用户名或密码错误")
+    token = create_access_token(data={"sub": user.username})
+    return {"access_token": token, "token_type": "bearer"}
+
+@app.get("/api/history")
+async def get_history(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    records = db.query(SleepRecord).filter(SleepRecord.user_id == user.id).all()
+    return records
 
 if __name__ == "__main__":
     import uvicorn

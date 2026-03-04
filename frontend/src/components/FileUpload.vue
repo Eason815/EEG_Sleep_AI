@@ -174,14 +174,31 @@ export default {
         this.progress = 30
         this.loadingMessage = '正在预处理数据...'
         
+        const token = localStorage.getItem('token');
+        if (!token) {
+          this.error = '认证失败，请重新登录。';
+          this.loading = false;
+          return;
+        }
+
         // 调用真实API
         const response = await fetch('http://localhost:8000/api/analyze', {
           method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          },
           body: formData
         })
         
         if (!response.ok) {
-          throw new Error(`服务器错误: ${response.status}`)
+          if (response.status === 401) {
+            // 清除过期token并通知父组件
+            localStorage.removeItem('token');
+            this.$emit('authExpired');
+            throw new Error('认证已过期，请重新登录。');
+          }
+          const errorData = await response.json().catch(() => ({ detail: '未知服务器错误' }));
+          throw new Error(errorData.detail || `服务器错误: ${response.status}`);
         }
         
         // 步骤3: AI推理
