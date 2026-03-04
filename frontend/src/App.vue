@@ -10,9 +10,9 @@
         <span>睡眠分析系统</span>
       </div>
       <nav class="nav-links">
-        <a href="#" class="active">分析</a>
-        <a href="#">历史记录</a>
-        <a href="#">关于</a>
+        <a href="#" :class="{ active: currentView === 'upload' }" @click.prevent="setView('upload')">分析</a>
+        <a href="#" :class="{ active: currentView === 'history', disabled: !isAuthenticated }" @click.prevent="isAuthenticated && setView('history')">历史记录</a>
+        <!-- <a href="#">关于</a> -->
       </nav>
       <div class="user-actions">
         <template v-if="isAuthenticated">
@@ -31,11 +31,19 @@
       <Auth v-if="!isAuthenticated" @authenticated="handleAuth" :initialMode="authMode" ref="authComponent" />
       
       <div v-else>
-        <FileUpload @analysisComplete="handleAnalysisComplete" @authExpired="handleAuthExpired" />
+        <!-- 历史记录视图 -->
+        <template v-if="currentView === 'history'">
+          <History @viewRecord="handleViewRecord" @authExpired="handleAuthExpired" />
+        </template>
         
-        <transition name="fade">
-          <Hypnogram v-if="resultData" :data="resultData" />
-        </transition>
+        <!-- 上传分析视图 -->
+        <template v-else>
+          <FileUpload @analysisComplete="handleAnalysisComplete" @authExpired="handleAuthExpired" />
+          
+          <transition name="fade">
+            <Hypnogram v-if="resultData" :data="resultData" />
+          </transition>
+        </template>
       </div>
     </main>
 
@@ -50,20 +58,23 @@
 import FileUpload from './components/FileUpload.vue'
 import Hypnogram from './components/Hypnogram.vue'
 import Auth from './components/Auth.vue'
+import History from './components/History.vue'
 
 export default {
   name: 'App',
   components: {
     FileUpload,
     Hypnogram,
-    Auth
+    Auth,
+    History
   },
   data() {
     return {
       resultData: null,
       isAuthenticated: !!localStorage.getItem('token'),
       username: localStorage.getItem('username') || '',
-      authMode: 'login'  // 'login' 或 'register'
+      authMode: 'login',  // 'login' 或 'register'
+      currentView: 'upload'  // 'upload' 或 'history'
     }
   },
   methods: {
@@ -79,6 +90,7 @@ export default {
       this.isAuthenticated = false
       this.username = ''
       this.resultData = null
+      this.currentView = 'upload'
       localStorage.removeItem('token')
       localStorage.removeItem('username')
     },
@@ -86,6 +98,7 @@ export default {
       this.isAuthenticated = false
       this.username = ''
       this.resultData = null
+      this.currentView = 'upload'
       localStorage.removeItem('token')
       localStorage.removeItem('username')
     },
@@ -96,6 +109,20 @@ export default {
     showRegister() {
       this.authMode = 'register'
       this.isAuthenticated = false
+    },
+    setView(view) {
+      if (this.isAuthenticated) {
+        this.currentView = view
+        // 切换到上传视图时清除结果数据
+        if (view === 'upload') {
+          this.resultData = null
+        }
+      }
+    },
+    handleViewRecord(result) {
+      // 从历史记录点击查看详情，切换到上传视图并显示结果
+      this.currentView = 'upload'
+      this.resultData = result
     }
   }
 }
@@ -155,6 +182,11 @@ body {
 .nav-links a:hover,
 .nav-links a.active {
   color: #667eea;
+}
+
+.nav-links a.disabled {
+  color: #ccc;
+  cursor: not-allowed;
 }
 
 /* 用户操作区 */

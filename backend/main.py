@@ -7,6 +7,7 @@ from services.analyzer import SleepAnalyzer
 from train import SleepStageNetV8
 from pathlib import Path
 import logging
+import json
 from database import engine, SessionLocal, Base, get_db
 from auth import get_password_hash, verify_password, create_access_token, decode_access_token
 from fastapi import Depends, Header, Form
@@ -149,54 +150,6 @@ async def analyze_sleep(file: UploadFile = File(...), current_user: User = Depen
         )
 
 
-@app.post("/api/analyze/mock", response_model=APIResponse)
-async def analyze_mock(file: UploadFile = File(...)):
-    """
-    模拟接口（用于前端开发测试）
-    """
-    import random
-    import numpy as np
-    
-    # 生成8小时模拟数据
-    total_epochs = 960
-    hypnogram = []
-    
-    for i in range(total_epochs):
-        if i < 20:
-            hypnogram.append(0)  # 清醒
-        elif i < 60:
-            hypnogram.append(2)  # 入睡
-        elif i < 200:
-            hypnogram.append(random.choice([2, 3, 3, 3]))
-        elif i < 350:
-            hypnogram.append(random.choice([1, 1, 2]))
-        else:
-            hypnogram.append(random.choice([1, 1, 2, 2, 3]))
-    
-    stats = {
-        "W_ratio": hypnogram.count(0) / total_epochs,
-        "REM_ratio": hypnogram.count(1) / total_epochs,
-        "Light_ratio": hypnogram.count(2) / total_epochs,
-        "Deep_ratio": hypnogram.count(3) / total_epochs
-    }
-    
-    return APIResponse(
-        code=200,
-        message="模拟分析成功",
-        data=AnalysisResult(
-            hypnogram=hypnogram,
-            stats=SleepStats(**stats),
-            quality_score=random.randint(70, 95),
-            total_epochs=total_epochs,
-            duration_hours=8.0,
-            sleep_efficiency=random.uniform(80, 95),
-            sleep_latency=random.randint(5, 30),
-            waso=random.randint(10, 50),
-            rem_latency=random.randint(70, 120)
-        )
-    )
-
-
 @app.post("/api/register")
 async def register(username: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
     if db.query(User).filter(User.username == username).first():
@@ -216,8 +169,72 @@ async def login(username: str = Form(...), password: str = Form(...), db: Sessio
 
 @app.get("/api/history")
 async def get_history(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    records = db.query(SleepRecord).filter(SleepRecord.user_id == user.id).all()
-    return records
+    records = db.query(SleepRecord).filter(SleepRecord.user_id == user.id).order_by(SleepRecord.created_at.desc()).all()
+    result = []
+    for r in records:
+        # 解析 result_json（可能是字符串或字典）
+        if r.result_json:
+            if isinstance(r.result_json, str):
+                try:
+                    result_data = json.loads(r.result_json)
+                except:
+                    result_data = {}
+            else:
+                result_data = r.result_json
+        else:
+            result_data = {}
+        
+        result.append({
+            "id": r.id,
+            "filename": r.filename,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+            "quality_score": result_data.get("quality_score"),
+            "duration_hours": result_data.get("duration_hours")
+        })
+    return result
+
+
+@app.get("/api/history/{record_id}")
+async def get_record_detail(record_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    record = db.query(SleepRecord).filter(
+        SleepRecord.id == record_id,
+        SleepRecord.user_id == user.id
+    ).first()
+    if not record:
+        raise HTTPException(status_code=404, detail="记录不存在")
+    
+    # 解析 result_json（可能是字符串或字典）
+    if record.result_json:
+        if isinstance(record.result_json, str):
+            try:
+                result_data = json.loads(record.result_json)
+            except:
+                result_data = {}
+        else:
+            result_data = record.result_json
+    else:
+        result_data = {}
+    
+    return {
+        "id": record.id,
+        "filename": record.filename,
+        "created_at": record.created_at.isoformat() if record.created_at else None,
+        "result": result_data
+    }
+
+
+@app.delete("/api/history/{record_id}")
+async def delete_record(record_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    record = db.query(SleepRecord).filter(
+        SleepRecord.id == record_id,
+        SleepRecord.user_id == user.id
+    ).first()
+    if not record:
+        raise HTTPException(status_code=404, detail="记录不存在")
+    
+    db.delete(record)
+    db.commit()
+    return {"message": "记录已删除"}
 
 if __name__ == "__main__":
     import uvicorn
