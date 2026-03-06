@@ -180,6 +180,11 @@ export default {
           this.loading = false;
           return;
         }
+        
+        // 步骤3: AI推理
+        this.currentStep = 3
+        this.progress = 60
+        this.loadingMessage = 'AI 正在分析睡眠数据...'
 
         // 调用真实API
         const response = await fetch('http://localhost:8000/api/analyze', {
@@ -200,11 +205,6 @@ export default {
           const errorData = await response.json().catch(() => ({ detail: '未知服务器错误' }));
           throw new Error(errorData.detail || `服务器错误: ${response.status}`);
         }
-        
-        // 步骤3: AI推理
-        this.currentStep = 3
-        this.progress = 60
-        this.loadingMessage = 'AI 正在分析睡眠数据...'
         
         const result = await response.json()
         

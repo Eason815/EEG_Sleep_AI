@@ -69,10 +69,10 @@
               <span class="metric-label">睡眠周期</span>
               <span class="metric-value">{{ data.metrics.num_cycles }}个</span>
             </div>
-            <div class="metric-item">
+            <!-- <div class="metric-item">
               <span class="metric-label">碎片化指数</span>
               <span class="metric-value">{{ data.metrics.fragmentation_index.toFixed(1) }}</span>
-            </div>
+            </div> -->
           </div>
         </div>
       </div>

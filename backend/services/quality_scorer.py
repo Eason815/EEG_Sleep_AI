@@ -192,6 +192,11 @@ class SleepQualityScorer:
         3. REM睡眠是否正常
         
         参考: Berry et al. (2017) AASM标准
+
+        深睡眠 (Deep)		恢复体力的关键阶段
+        REM睡眠	    	    记忆巩固、情绪调节
+        浅睡眠 (Light)	 	占比最大，过渡阶段
+        清醒 (W)	    	睡眠中断指标
         """
         ratios = metrics['stage_ratios']
         score = 100
@@ -202,13 +207,13 @@ class SleepQualityScorer:
         if ideal_deep[0] <= deep_ratio <= ideal_deep[1]:
             deep_score = 100
         elif deep_ratio < ideal_deep[0]:
-            # 深睡眠不足严重扣分
+            # 深睡眠不足扣分
             deficit = (ideal_deep[0] - deep_ratio) / ideal_deep[0]
-            deep_score = max(0, 100 - deficit * 150)
+            deep_score = max(40, 100 - deficit * 100)
         else:
             # 过多深睡眠（少见但也扣分）
             excess = (deep_ratio - ideal_deep[1]) / ideal_deep[1]
-            deep_score = max(60, 100 - excess * 80)
+            deep_score = max(60, 100 - excess * 60)
         
         # 2. REM睡眠评分 (权重30%)
         rem_ratio = ratios['REM']
@@ -217,10 +222,10 @@ class SleepQualityScorer:
             rem_score = 100
         elif rem_ratio < ideal_rem[0]:
             deficit = (ideal_rem[0] - rem_ratio) / ideal_rem[0]
-            rem_score = max(0, 100 - deficit * 120)
+            rem_score = max(40, 100 - deficit * 80)
         else:
             excess = (rem_ratio - ideal_rem[1]) / ideal_rem[1]
-            rem_score = max(70, 100 - excess * 60)
+            rem_score = max(70, 100 - excess * 50)
         
         # 3. 浅睡眠评分 (权重20%)
         light_ratio = ratios['Light']
@@ -229,7 +234,7 @@ class SleepQualityScorer:
             light_score = 100
         else:
             deviation = abs(light_ratio - np.mean(ideal_light)) / np.mean(ideal_light)
-            light_score = max(60, 100 - deviation * 100)
+            light_score = max(60, 100 - deviation * 70)
         
         # 4. 清醒比例评分 (权重10%)
         w_ratio = ratios['W']
@@ -266,29 +271,29 @@ class SleepQualityScorer:
         elif waso <= 40:
             waso_score = 100 - (waso - 20) * 2
         elif waso <= 60:
-            waso_score = 60 - (waso - 40) * 1.5
+            waso_score = 75 - (waso - 40) * 1.5
         else:
-            waso_score = max(0, 30 - (waso - 60) * 0.5)
+            waso_score = max(50, 50 - (waso - 60) * 0.5)
         
-        # 2. 觉醒次数评分 (权重30%)
+        # 2. 觉醒次数评分 (权重40%)
         awakenings = metrics['num_awakenings']
         if awakenings <= 2:
             awakening_score = 100
         elif awakenings <= 5:
-            awakening_score = 100 - (awakenings - 2) * 15
+            awakening_score = 100 - (awakenings - 2) * 10
         else:
-            awakening_score = max(0, 55 - (awakenings - 5) * 10)
+            awakening_score = max(40, 70 - (awakenings - 5) * 10)
         
-        # 3. 碎片化指数评分 (权重30%)
+        # 3. 碎片化指数评分 (权重20%)
         frag_index = metrics['fragmentation_index']
         if frag_index <= 10:
             frag_score = 100
         elif frag_index <= 20:
-            frag_score = 100 - (frag_index - 10) * 3
+            frag_score = 100 - (frag_index - 10) * 2
         else:
             frag_score = max(0, 70 - (frag_index - 20) * 2)
         
-        total = (waso_score * 0.4 + awakening_score * 0.3 + frag_score * 0.3)
+        total = (waso_score * 0.4 + awakening_score * 0.4 + frag_score * 0.2)
         return total
     
     def _score_timing(self, metrics: Dict) -> float:
@@ -341,53 +346,81 @@ class SleepQualityScorer:
         return total
     
     def _detect_sleep_cycles(self) -> List[Tuple[int, int]]:
-        """
-        检测睡眠周期
+        """检测睡眠周期 - 带时间约束"""
+        MIN_CYCLE_EPOCHS = 120   # 最小周期: 60分钟
+        MIN_REM_EPOCHS = 6       # REM至少持续: 3分钟
         
-        标准: 一个周期约90分钟，包含NREM→REM的转换
-        """
         cycles = []
-        in_cycle = False
-        cycle_start = 0
+        cycle_start = None
         
-        for i in range(len(self.hypnogram) - 1):
-            current = self.hypnogram[i]
-            next_stage = self.hypnogram[i + 1]
-            
-            # 检测深睡眠→REM的转换（周期标志）
-            if current == 3 and next_stage == 1:
-                if not in_cycle:
-                    cycle_start = i
-                    in_cycle = True
+        # 1. 先找到入睡点
+        for i, stage in enumerate(self.hypnogram):
+            if stage > 0:  # 找到第一个非清醒阶段
+                cycle_start = i
+                break
+        
+        if cycle_start is None:
+            return []  # 没有睡眠数据
+        
+        # 2. 检测REM阶段作为周期边界
+        i = cycle_start
+        while i < len(self.hypnogram):
+            # 寻找下一个REM开始
+            rem_start = None
+            while i < len(self.hypnogram):
+                if self.hypnogram[i] == 1:
+                    # 检查REM是否足够长
+                    rem_len = 0
+                    j = i
+                    while j < len(self.hypnogram) and self.hypnogram[j] == 1:
+                        rem_len += 1
+                        j += 1
+                    if rem_len >= MIN_REM_EPOCHS:
+                        rem_start = i
+                        break
+                    else:
+                        i = j  # 跳过短暂REM
                 else:
-                    cycles.append((cycle_start, i))
-                    cycle_start = i
+                    i += 1
+            
+            if rem_start is None:
+                break
+            
+            # 检查当前周期长度是否合理
+            cycle_duration = rem_start - cycle_start
+            if cycle_duration >= MIN_CYCLE_EPOCHS:
+                cycles.append((cycle_start, rem_start))
+                cycle_start = rem_start
+            
+            i = rem_start + 1
         
-        if in_cycle:
+        # 最后一个周期
+        if cycle_start is not None:
             cycles.append((cycle_start, len(self.hypnogram) - 1))
         
         return cycles
     
     def _count_awakenings(self) -> int:
         """计算觉醒次数（持续>1分钟的清醒期）"""
+        from utils.smoother import smooth_hypnogram
+        sleep_hypnogram_smooth = smooth_hypnogram(self.hypnogram, min_duration=3)
+
         count = 0
-        in_wake = False
         wake_duration = 0
         
-        for stage in self.hypnogram:
+        for stage in sleep_hypnogram_smooth:
             if stage == 0:
-                if not in_wake:
-                    in_wake = True
-                    wake_duration = 1
-                else:
                     wake_duration += 1
             else:
-                if in_wake and wake_duration >= 2:  # >1分钟
+                if wake_duration >= 1:  # >1分钟
                     count += 1
-                in_wake = False
-                wake_duration = 0
-        
-        return count
+                    wake_duration = 0
+
+        if wake_duration >= 1:  # >1分钟
+            count += 1
+            wake_duration = 0
+
+        return count - 2
     
     def _calculate_fragmentation(self) -> float:
         """
