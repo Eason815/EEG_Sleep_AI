@@ -150,22 +150,18 @@ class SleepPredictorV1(BaseSleepPredictor):
         results_4cls = [map_5to4(r) for r in results]
         
         # 计算统计指标
-        total = len(results_4cls)
+        total = len(results_4cls) - 40
         stats = {
-            "W_ratio": results_4cls.count(0) / total,
+            "W_ratio": (results_4cls.count(0) - 40) / total if total > 0 else 0,
             "REM_ratio": results_4cls.count(1) / total,
             "Light_ratio": results_4cls.count(2) / total,
             "Deep_ratio": results_4cls.count(3) / total
         }
         
-        # 简易质量分数（可自定义算法）
-        quality_score = int((stats["Deep_ratio"] * 0.3 + stats["REM_ratio"] * 0.3 + 
-                            (1 - stats["W_ratio"]) * 0.4) * 100)
         
         return {
             "hypnogram": results_4cls,
-            "stats": stats,
-            "quality_score": quality_score
+            "stats": stats
         }
     
     def get_robust_sleep_boundaries(self, starts, ends, stages, total_duration_sec):

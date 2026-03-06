@@ -1,32 +1,97 @@
 <template>
   <div class="results-container">
-    <!-- 质量评分卡片 -->
-    <div class="score-card">
-      <div class="score-circle">
-        <svg width="160" height="160">
-          <circle cx="80" cy="80" r="70" fill="none" stroke="#e0e0e0" stroke-width="12"/>
-          <circle 
-            cx="80" cy="80" r="70" 
-            fill="none" 
-            stroke="url(#gradient)" 
-            stroke-width="12"
-            stroke-dasharray="440"
-            :stroke-dashoffset="440 - (440 * qualityScore / 100)"
-            transform="rotate(-90 80 80)"
-          />
-          <defs>
-            <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" style="stop-color:#667eea"/>
-              <stop offset="100%" style="stop-color:#764ba2"/>
-            </linearGradient>
-          </defs>
-        </svg>
-        <div class="score-value">
-          <span class="score-number">{{ qualityScore }}</span>
-          <span class="score-label">睡眠质量</span>
+    <!-- 顶部卡片行：评分 + 详细指标 + 睡眠建议 -->
+    <div class="top-cards-row">
+      <!-- 质量评分卡片 -->
+      <div class="score-card">
+        <div class="score-circle">
+          <svg width="160" height="160">
+            <circle cx="80" cy="80" r="70" fill="none" stroke="#e0e0e0" stroke-width="12"/>
+            <circle 
+              cx="80" cy="80" r="70" 
+              fill="none" 
+              stroke="url(#gradient)" 
+              stroke-width="12"
+              stroke-dasharray="440"
+              :stroke-dashoffset="440 - (440 * qualityScore / 100)"
+              transform="rotate(-90 80 80)"
+            />
+            <defs>
+              <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" style="stop-color:#667eea"/>
+                <stop offset="100%" style="stop-color:#764ba2"/>
+              </linearGradient>
+            </defs>
+          </svg>
+          <div class="score-value">
+            <span class="score-number">{{ qualityScore }}</span>
+            <span class="score-label">睡眠质量</span>
+          </div>
+        </div>
+        <p class="score-desc">{{ getScoreDescription(qualityScore) }}</p>
+      </div>
+
+      <!-- 详细指标卡片 -->
+      <div class="metrics-card" v-if="data?.sub_scores && data?.metrics">
+        <h3>📊 详细指标</h3>
+        <div class="metrics-content">
+          <div class="metrics-column">
+            <h4>维度得分</h4>
+            <div class="metric-item">
+              <span class="metric-label">睡眠效率</span>
+              <span class="metric-value">{{ data.sub_scores.efficiency.toFixed(1) }}分</span>
+            </div>
+            <div class="metric-item">
+              <span class="metric-label">睡眠结构</span>
+              <span class="metric-value">{{ data.sub_scores.architecture.toFixed(1) }}分</span>
+            </div>
+            <div class="metric-item">
+              <span class="metric-label">连续性</span>
+              <span class="metric-value">{{ data.sub_scores.continuity.toFixed(1) }}分</span>
+            </div>
+            <div class="metric-item">
+              <span class="metric-label">时间特征</span>
+              <span class="metric-value">{{ data.sub_scores.timing.toFixed(1) }}分</span>
+            </div>
+          </div>
+          <div class="metrics-divider"></div>
+          <div class="metrics-column">
+            <h4>详细数据</h4>
+            <div class="metric-item">
+              <span class="metric-label">入睡延迟</span>
+              <span class="metric-value">{{ data.metrics.sleep_latency_min.toFixed(0) }}分钟</span>
+            </div>
+            <div class="metric-item">
+              <span class="metric-label">觉醒次数</span>
+              <span class="metric-value">{{ data.metrics.num_awakenings }}次</span>
+            </div>
+            <div class="metric-item">
+              <span class="metric-label">睡眠周期</span>
+              <span class="metric-value">{{ data.metrics.num_cycles }}个</span>
+            </div>
+            <div class="metric-item">
+              <span class="metric-label">碎片化指数</span>
+              <span class="metric-value">{{ data.metrics.fragmentation_index.toFixed(1) }}</span>
+            </div>
+          </div>
         </div>
       </div>
-      <p class="score-desc">{{ getScoreDescription(qualityScore) }}</p>
+
+      <!-- 睡眠建议卡片 -->
+      <div class="recommendations-card" v-if="data?.recommendations?.length">
+        <h3>💡 睡眠建议</h3>
+        <div class="recommendations-content">
+          <div class="recommendations-grid">
+            <div 
+              v-for="(rec, index) in data.recommendations" 
+              :key="index" 
+              class="recommendation-item"
+            >
+              {{ rec }}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- 图表1：完整20小时记录 -->
@@ -547,10 +612,17 @@ export default {
 
 <style scoped>
 .results-container {
-  display: grid;
-  grid-template-columns: 300px 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 1.5rem;
   margin-top: 2rem;
+}
+
+/* 顶部卡片行：三个卡片并排 */
+.top-cards-row {
+  display: grid;
+  grid-template-columns: 280px 1fr 1fr;
+  gap: 1.5rem;
 }
 
 .score-card {
@@ -692,9 +764,121 @@ export default {
   color: #333;
 }
 
+/* 详细指标卡片 */
+.metrics-card {
+  background: white;
+  border-radius: 20px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+}
+
+.metrics-card h3 {
+  margin-bottom: 1rem;
+  color: #333;
+  font-size: 1.1rem;
+  text-align: center;
+}
+
+.metrics-content {
+  display: flex;
+  gap: 1rem;
+}
+
+.metrics-column {
+  flex: 1;
+}
+
+.metrics-column h4 {
+  font-size: 0.85rem;
+  color: #888;
+  margin-bottom: 0.75rem;
+  font-weight: 500;
+}
+
+.metrics-divider {
+  width: 1px;
+  background: #e0e0e0;
+  margin: 0 0.5rem;
+}
+
+.metric-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.4rem 0;
+  font-size: 0.9rem;
+}
+
+.metric-label {
+  color: #666;
+}
+
+.metric-value {
+  color: #333;
+  font-weight: 600;
+}
+
+/* 睡眠建议卡片 */
+.recommendations-card {
+  background: white;
+  border-radius: 20px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+}
+
+.recommendations-card h3 {
+  margin-bottom: 1rem;
+  color: #333;
+  font-size: 1.1rem;
+  text-align: center;
+}
+
+.recommendations-content {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.recommendations-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem;
+}
+
+.recommendation-item {
+  font-size: 0.85rem;
+  color: #555;
+  line-height: 1.5;
+  padding: 0.5rem;
+  background: #f8f9ff;
+  border-radius: 8px;
+  white-space: pre-line;
+}
+
+@media (max-width: 1200px) {
+  .top-cards-row {
+    grid-template-columns: 1fr;
+  }
+  
+  .recommendations-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 768px) {
   .results-container {
-    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  .top-cards-row {
+    gap: 1rem;
+  }
+  
+  .metrics-content {
+    flex-direction: column;
+  }
+  
+  .metrics-divider {
+    display: none;
   }
 }
 </style>

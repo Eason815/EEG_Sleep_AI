@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 import jwt
 from passlib.context import CryptContext
 
-SECRET_KEY = "super_secret_key_change_me"
+SECRET_KEY = "super88_gg_bond_kskbl_zdjd_wkzkbl"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 5
 

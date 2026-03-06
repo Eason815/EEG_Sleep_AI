@@ -1,6 +1,6 @@
 from predictor_v1 import SleepPredictorV1
-from services.quality_scorer import SleepQualityScorer, calculate_simple_score
-from models.response import AnalysisResult, SleepStats
+from services.quality_scorer import SleepQualityScorer
+from models.response import AnalysisResult, SleepStats, SubScores, SleepMetrics
 from utils.smoother import smooth_hypnogram, downsample_hypnogram
 from pathlib import Path
 import tempfile
@@ -83,7 +83,7 @@ class SleepAnalyzer:
             
             # 9. 计算统计指标（基于核心睡眠区间）
             total_epochs = len(hypnogram_full)
-            duration_hours = total_epochs * 0.5 / 60
+            duration_hours = (total_epochs * 0.5 - 40) / 60
             
             # 睡眠效率（基于核心睡眠区间）
             total_sleep = sum(1 for x in sleep_hypnogram_raw if x > 0)
@@ -113,7 +113,25 @@ class SleepAnalyzer:
                 sleep_latency=int(quality_report['metrics']['sleep_latency_min']),
                 waso=int(quality_report['metrics']['waso_min']),
                 rem_latency=int(quality_report['metrics']['rem_latency_min']) 
-                    if quality_report['metrics']['rem_latency_min'] else None
+                    if quality_report['metrics']['rem_latency_min'] else None,
+                
+                # 新增：各维度得分
+                sub_scores=SubScores(**quality_report['sub_scores']),
+                
+                # 新增：详细睡眠指标
+                metrics=SleepMetrics(
+                    sleep_efficiency=quality_report['metrics']['sleep_efficiency'],
+                    sleep_latency_min=quality_report['metrics']['sleep_latency_min'],
+                    waso_min=quality_report['metrics']['waso_min'],
+                    rem_latency_min=quality_report['metrics']['rem_latency_min'],
+                    num_cycles=quality_report['metrics']['num_cycles'],
+                    num_awakenings=quality_report['metrics']['num_awakenings'],
+                    fragmentation_index=quality_report['metrics']['fragmentation_index'],
+                    total_sleep_time_hours=quality_report['metrics']['total_sleep_time_hours']
+                ),
+                
+                # 新增：睡眠建议
+                recommendations=quality_report['recommendations']
             )
             
         finally:
