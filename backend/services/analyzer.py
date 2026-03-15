@@ -84,10 +84,6 @@ class SleepAnalyzer:
             total_epochs = len(hypnogram_full)
             duration_hours = (total_epochs * 0.5 - 40) / 60
             
-            # 睡眠效率（基于核心睡眠区间）
-            total_sleep = sum(1 for x in sleep_hypnogram_raw if x > 0)
-            sleep_efficiency = (total_sleep / len(sleep_hypnogram_raw)) * 100 if len(sleep_hypnogram_raw) > 0 else 0
-            
             # 10. 构建响应
             return AnalysisResult(
                 # 完整数据
@@ -108,7 +104,7 @@ class SleepAnalyzer:
                 quality_score=quality_report['total_score'],
                 total_epochs=total_epochs,
                 duration_hours=round(duration_hours, 2),
-                sleep_efficiency=round(sleep_efficiency, 2),
+                sleep_efficiency=int(quality_report['metrics']['sleep_efficiency']),
                 sleep_latency=int(quality_report['metrics']['sleep_latency_min']),
                 waso=int(quality_report['metrics']['waso_min']),
                 rem_latency=int(quality_report['metrics']['rem_latency_min']) 

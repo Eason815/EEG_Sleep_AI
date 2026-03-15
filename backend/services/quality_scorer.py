@@ -42,10 +42,10 @@ class SleepQualityScorer:
     
     # 权重配置（可调整）
     WEIGHTS = {
-        'efficiency': 0.4,      # 睡眠效率
-        'architecture': 0.2,    # 睡眠结构
-        'continuity': 0.16,      # 睡眠连续性
-        'timing': 0.24          # 时间特征
+        'efficiency': 0.20,      # 睡眠效率
+        'architecture': 0.30,    # 睡眠结构
+        'continuity': 0.30,      # 睡眠连续性
+        'timing': 0.20          # 时间特征
     }
     
     def __init__(self, hypnogram: List[int]):
@@ -106,8 +106,8 @@ class SleepQualityScorer:
         
         # 1. 睡眠效率 (Sleep Efficiency)
         # 定义: 实际睡眠时间 / 卧床时间 × 100%
-        total_sleep_time = np.sum(self.hypnogram > 0)  # 排除清醒
-        sleep_efficiency = (total_sleep_time / self.total_epochs) * 100
+        total_sleep = sum(1 for x in self.hypnogram if x > 0)
+        sleep_efficiency = (total_sleep / self.total_epochs) * 100
         
         # 2. 入睡延迟 (Sleep Onset Latency, SOL)
         # 定义: 从躺下到进入N1的时间
@@ -158,7 +158,7 @@ class SleepQualityScorer:
             'num_cycles': len(cycles),
             'num_awakenings': awakenings,
             'fragmentation_index': fragmentation_index,
-            'total_sleep_time_hours': total_sleep_time * self.epoch_duration / 60
+            'total_sleep_time_hours': total_sleep * self.epoch_duration / 60
         }
     
     def _score_efficiency(self, metrics: Dict) -> float:
@@ -172,15 +172,7 @@ class SleepQualityScorer:
         - 较差: <65%
         """
         efficiency = metrics['sleep_efficiency']
-        
-        if efficiency >= 85:
-            return 100
-        elif efficiency >= 75:
-            return 85 + (efficiency - 75) * 1.5  # 85-100分
-        elif efficiency >= 65:
-            return 65 + (efficiency - 65) * 2    # 65-85分
-        else:
-            return max(0, efficiency)            # 0-65分
+        return efficiency
     
     def _score_architecture(self, metrics: Dict) -> float:
         """
@@ -209,11 +201,11 @@ class SleepQualityScorer:
         elif deep_ratio < ideal_deep[0]:
             # 深睡眠不足扣分
             deficit = (ideal_deep[0] - deep_ratio) / ideal_deep[0]
-            deep_score = max(40, 100 - deficit * 100)
+            deep_score = max(0, 100 - deficit * 150)
         else:
             # 过多深睡眠（少见但也扣分）
             excess = (deep_ratio - ideal_deep[1]) / ideal_deep[1]
-            deep_score = max(60, 100 - excess * 60)
+            deep_score = max(60, 100 - excess * 80)
         
         # 2. REM睡眠评分 (权重30%)
         rem_ratio = ratios['REM']
@@ -222,10 +214,10 @@ class SleepQualityScorer:
             rem_score = 100
         elif rem_ratio < ideal_rem[0]:
             deficit = (ideal_rem[0] - rem_ratio) / ideal_rem[0]
-            rem_score = max(40, 100 - deficit * 80)
+            rem_score = max(0, 100 - deficit * 120)
         else:
             excess = (rem_ratio - ideal_rem[1]) / ideal_rem[1]
-            rem_score = max(70, 100 - excess * 50)
+            rem_score = max(70, 100 - excess * 60)
         
         # 3. 浅睡眠评分 (权重20%)
         light_ratio = ratios['Light']
@@ -234,7 +226,7 @@ class SleepQualityScorer:
             light_score = 100
         else:
             deviation = abs(light_ratio - np.mean(ideal_light)) / np.mean(ideal_light)
-            light_score = max(60, 100 - deviation * 70)
+            light_score = max(60, 100 - deviation * 100)
         
         # 4. 清醒比例评分 (权重10%)
         w_ratio = ratios['W']
@@ -271,29 +263,29 @@ class SleepQualityScorer:
         elif waso <= 40:
             waso_score = 100 - (waso - 20) * 2
         elif waso <= 60:
-            waso_score = 75 - (waso - 40) * 1.5
+            waso_score = 60 - (waso - 40) * 1.5
         else:
-            waso_score = max(50, 50 - (waso - 60) * 0.5)
+            waso_score = max(0, 30 - (waso - 60) * 0.5)
         
-        # 2. 觉醒次数评分 (权重40%)
+        # 2. 觉醒次数评分 (权重30%)
         awakenings = metrics['num_awakenings']
         if awakenings <= 2:
             awakening_score = 100
         elif awakenings <= 5:
-            awakening_score = 100 - (awakenings - 2) * 10
+            awakening_score = 100 - (awakenings - 2) * 15
         else:
-            awakening_score = max(40, 70 - (awakenings - 5) * 10)
+            awakening_score = max(0, 55 - (awakenings - 5) * 10)
         
-        # 3. 碎片化指数评分 (权重20%)
+        # 3. 碎片化指数评分 (权重30%)
         frag_index = metrics['fragmentation_index']
         if frag_index <= 10:
             frag_score = 100
         elif frag_index <= 20:
-            frag_score = 100 - (frag_index - 10) * 2
+            frag_score = 100 - (frag_index - 10) * 3
         else:
             frag_score = max(0, 70 - (frag_index - 20) * 2)
         
-        total = (waso_score * 0.4 + awakening_score * 0.4 + frag_score * 0.2)
+        total = (waso_score * 0.4 + awakening_score * 0.3 + frag_score * 0.3)
         return total
     
     def _score_timing(self, metrics: Dict) -> float:
@@ -462,7 +454,7 @@ class SleepQualityScorer:
             )
         
         # 4. 睡眠连续性建议
-        if metrics['num_awakenings'] > 5:
+        if metrics['num_awakenings'] > 3:
             recommendations.append(
                 "🌙 睡眠碎片化，建议:\n"
                 "  - 检查睡眠环境（噪音、光线、温度）\n"
