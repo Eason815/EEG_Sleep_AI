@@ -1,15 +1,14 @@
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from models.response import APIResponse, AnalysisResult, SleepStats
-from models.user import User, SleepRecord
+from entity.response import APIResponse, AnalysisResult, SleepStats
+from entity.user import User, SleepRecord
 from services.analyzer import SleepAnalyzer
-from train import SleepStageNetV8
+from models.model import SleepStageNetV8
 from pathlib import Path
 import logging
 import json
-from database import engine, SessionLocal, Base, get_db
-from auth import get_password_hash, verify_password, create_access_token, decode_access_token
+from poms.database import engine, SessionLocal, Base, get_db
+from poms.auth import get_password_hash, verify_password, create_access_token, decode_access_token
 from fastapi import Depends, Header, Form
 from sqlalchemy.orm import Session
 from fastapi.security import OAuth2PasswordBearer
@@ -58,11 +57,10 @@ async def startup_event():
     
     # 确保路径是相对于 main.py 的正确位置
     BASE_DIR = Path(__file__).resolve().parent
-    MODEL_PATH = str(BASE_DIR / "data" / "model021101.pth")
+    MODEL_PATH = str(BASE_DIR / "data" / "model031401.pth")
 
     try:
         # 直接实例化
-        from train import SleepStageNetV8
         analyzer = SleepAnalyzer(
             model_class=SleepStageNetV8,
             model_path=MODEL_PATH,

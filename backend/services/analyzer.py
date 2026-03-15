@@ -1,8 +1,7 @@
-from predictor_v1 import SleepPredictorV1
+from models.predictor_v1 import SleepPredictorV1
 from services.quality_scorer import SleepQualityScorer
-from models.response import AnalysisResult, SleepStats, SubScores, SleepMetrics
+from entity.response import AnalysisResult, SleepStats, SubScores, SleepMetrics
 from utils.smoother import smooth_hypnogram, downsample_hypnogram
-from pathlib import Path
 import tempfile
 import os
 import numpy as np
