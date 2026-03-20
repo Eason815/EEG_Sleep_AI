@@ -33,6 +33,7 @@
         </div>
         <div class="record-info" @click="viewRecord(record)">
           <h4 class="record-filename">{{ record.filename }}</h4>
+          <p class="record-model">{{ getModelLabel(record) }}</p>
           <p class="record-time">{{ formatTime(record.created_at) }}</p>
         </div>
         <div class="record-stats" @click="viewRecord(record)">
@@ -170,6 +171,15 @@ export default {
       if (score >= 75) return 'good'
       if (score >= 60) return 'average'
       return 'poor'
+    },
+
+    getModelLabel(record) {
+      const familyMap = {
+        sleep_stage_v8: 'SleepStageV8',
+        tiny_sleepnet: 'TinySleepNet'
+      }
+      if (record.model_name) return record.model_name
+      return familyMap[record.model_family] || record.model_family || 'SleepStageV8'
     },
 
     confirmDelete(record) {
@@ -363,6 +373,18 @@ export default {
   font-size: 0.85rem;
   color: #666;
   margin: 0;
+}
+
+.record-model {
+  display: inline-flex;
+  align-items: center;
+  margin: 0 0 0.35rem 0;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #4c51bf;
+  font-size: 0.78rem;
+  font-weight: 600;
 }
 
 .record-stats {

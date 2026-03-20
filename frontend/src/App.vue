@@ -7,12 +7,14 @@
           <path d="M16 4C9.373 4 4 9.373 4 16s5.373 12 12 12 12-5.373 12-12S22.627 4 16 4zm0 2c5.523 0 10 4.477 10 10s-4.477 10-10 10S6 21.523 6 16 10.477 6 16 6z" fill="#667eea"/>
           <path d="M16 10v6l4 2" stroke="#667eea" stroke-width="2" stroke-linecap="round"/>
         </svg>
-        <span>睡眠分析系统</span>
+        <span>睡眠评估与调控系统</span>
       </div>
       <nav class="nav-links">
         <a href="#" :class="{ active: currentView === 'upload' }" @click.prevent="setView('upload')">分析</a>
         <a href="#" :class="{ active: currentView === 'history', disabled: !isAuthenticated }" @click.prevent="isAuthenticated && setView('history')">历史记录</a>
-        <!-- <a href="#">关于</a> -->
+        <a href="#" :class="{ active: currentView === 'trends', disabled: !isAuthenticated }" @click.prevent="isAuthenticated && setView('trends')">趋势分析</a>
+        <a href="#" :class="{ active: currentView === 'regulation', disabled: !isAuthenticated }" @click.prevent="isAuthenticated && setView('regulation')">调控中心</a>
+        <a href="#" :class="{ active: currentView === 'settings', disabled: !isAuthenticated }" @click.prevent="isAuthenticated && setView('settings')">设置</a>
       </nav>
       <div class="user-actions">
         <template v-if="isAuthenticated">
@@ -36,6 +38,20 @@
           <History @viewRecord="handleViewRecord" @authExpired="handleAuthExpired" />
         </template>
         
+        <!-- 趋势分析视图 -->
+        <template v-else-if="currentView === 'trends'">
+          <Trends @authExpired="handleAuthExpired" />
+        </template>
+        
+        <!-- 设置视图 -->
+        <template v-else-if="currentView === 'regulation'">
+          <Regulation @authExpired="handleAuthExpired" />
+        </template>
+        
+        <template v-else-if="currentView === 'settings'">
+          <Settings @authExpired="handleAuthExpired" />
+        </template>
+        
         <!-- 上传分析视图 -->
         <template v-else>
           <FileUpload @analysisComplete="handleAnalysisComplete" @authExpired="handleAuthExpired" />
@@ -49,7 +65,7 @@
 
     <!-- 页脚 -->
     <footer class="footer">
-      <p>&copy; 2026 睡眠分析系统 | Powered by Vue 3 + FastAPI</p>
+      <p>&copy; 2026 基于脑电的睡眠质量评估与调控系统 | Powered by Vue 3 + FastAPI</p>
     </footer>
   </div>
 </template>
@@ -59,6 +75,9 @@ import FileUpload from './components/FileUpload.vue'
 import Hypnogram from './components/Hypnogram.vue'
 import Auth from './components/Auth.vue'
 import History from './components/History.vue'
+import Trends from './components/Trends.vue'
+import Regulation from './components/Regulation.vue'
+import Settings from './components/Settings.vue'
 
 export default {
   name: 'App',
@@ -66,7 +85,10 @@ export default {
     FileUpload,
     Hypnogram,
     Auth,
-    History
+    History,
+    Trends,
+    Regulation,
+    Settings
   },
   data() {
     return {

@@ -204,17 +204,7 @@ def main():
         for dir_path, error in failed_dirs:
             print(f"  - {dir_path}: {error}")
     
-    # 建议
-    print("\n" + "-" * 60)
-    print("建议:")
-    print("1. 可以将此脚本添加到 .gitignore 中")
-    print("2. 可以设置定时任务定期清理")
-    print("3. 可以在 Python 启动时设置 PYTHONDONTWRITEBYTECODE=1 环境变量")
-    print("   来避免生成 __pycache__ 目录")
-    print("-" * 60)
-    
     input("\n按 Enter 键退出...")
-
 
 if __name__ == "__main__":
     try:

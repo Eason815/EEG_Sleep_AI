@@ -4,6 +4,7 @@
     <div class="top-cards-row">
       <!-- 质量评分卡片 -->
       <div class="score-card">
+        <p v-if="data?.model_name" class="model-badge">{{ data.model_name }}</p>
         <div class="score-circle">
           <svg width="160" height="160">
             <circle cx="80" cy="80" r="70" fill="none" stroke="#e0e0e0" stroke-width="12"/>
@@ -96,7 +97,7 @@
 
     <!-- 图表1：完整20小时记录 -->
     <div class="chart-card">
-      <h3>📊 完整记录 ({{ data?.duration_hours?.toFixed(1) || 0 }}小时)</h3>
+      <h3>📊 核心睡眠时长 ({{ data?.duration_hours?.toFixed(1) || 0 }}小时)</h3>
       <div ref="chartFull" style="width: 100%; height: 300px;"></div>
     </div>
 
@@ -631,6 +632,18 @@ export default {
   padding: 2rem;
   text-align: center;
   box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+}
+
+.model-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.35rem 0.8rem;
+  margin-bottom: 1rem;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #4c51bf;
+  font-size: 0.85rem;
+  font-weight: 600;
 }
 
 .score-circle {

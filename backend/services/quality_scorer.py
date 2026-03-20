@@ -475,39 +475,3 @@ class SleepQualityScorer:
             recommendations.append("✅ 睡眠质量良好，继续保持健康作息！")
         
         return recommendations
-
-
-# 简化版本（供快速调用）
-# def calculate_simple_score(stats: Dict) -> int:
-#     """
-#     快速评分版本（兼容现有接口）
-    
-#     参数:
-#         stats: {'W_ratio': 0.1, 'REM_ratio': 0.2, ...}
-    
-#     返回:
-#         质量分数 0-100
-#     """
-#     score = 100
-    
-#     # 深睡眠权重30%
-#     if 0.13 <= stats['Deep_ratio'] <= 0.23:
-#         deep_score = 100
-#     elif stats['Deep_ratio'] < 0.13:
-#         deep_score = (stats['Deep_ratio'] / 0.13) * 100
-#     else:
-#         deep_score = 100 - (stats['Deep_ratio'] - 0.23) * 200
-    
-#     # REM权重30%
-#     if 0.20 <= stats['REM_ratio'] <= 0.25:
-#         rem_score = 100
-#     elif stats['REM_ratio'] < 0.20:
-#         rem_score = (stats['REM_ratio'] / 0.20) * 100
-#     else:
-#         rem_score = 100 - (stats['REM_ratio'] - 0.25) * 200
-    
-#     # 清醒权重40%
-#     wake_score = max(0, 100 - stats['W_ratio'] * 500)
-    
-#     total = int(deep_score * 0.3 + rem_score * 0.3 + wake_score * 0.4)
-#     return max(0, min(100, total))
