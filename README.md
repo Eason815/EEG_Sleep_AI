@@ -12,7 +12,9 @@
 
 ### 后端运行
 
-- Python 3.10.11 (库见./requirements.txt)
+- Python 3.10.11 
+
+(库见./requirements.txt)
 
 ```shell
 cd backend;python main.py
@@ -32,30 +34,39 @@ cd frontend;npm run dev
 
 - MYSQL 8.0.31
 
-数据库语句见(./backend/data/db_init.sql)
+建库语句见(./backend/data/db_init.sql)
 
 ## 关于模型
 
 ### 类1
 
-system/backend/data/sleep_stage_v8/model021101.pth
-system/backend/data/sleep_stage_v8/model031401.pth
+模型文件：
+```
+./backend/data/sleep_stage_v8/model021101.pth
+./backend/data/sleep_stage_v8/model031401.pth
+```
 
-1split.py->2process.py->3train.py
+训练流程：1split.py -> 2process.py -> 3train.py
 
 
 ### 类2
 
-system/backend/data/tiny_sleepnet/tiny031901.pth
+模型文件：
+```
+./backend/data/tiny_sleepnet/tiny031901.pth
+```
 
-1split1.py->2process1.py->3train1.py
+训练流程：1split1.py -> 2process1.py -> 3train1.py
 
 
 ### 类3
 
-system/backend/data/sleep_stage_v8/model031901.pth
+模型文件：
+```
+./backend/data/sleep_stage_v8/model031901.pth
+```
 
-1split1.py->2process1.py->3train2.py
+训练流程：1split1.py -> 2process1.py -> 3train2.py
 
 ## 参考资料
 
