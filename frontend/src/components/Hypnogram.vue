@@ -97,7 +97,7 @@
 
     <!-- 图表1：完整20小时记录 -->
     <div class="chart-card">
-      <h3>📊 核心睡眠时长 ({{ data?.duration_hours?.toFixed(1) || 0 }}小时)</h3>
+      <h3>📊 完整睡眠记录 ({{ fullRecordDurationHours.toFixed(1) }}小时)</h3>
       <div ref="chartFull" style="width: 100%; height: 300px;"></div>
     </div>
 
@@ -134,6 +134,7 @@
         <div class="stat-content">
           <p class="stat-label">清醒时间</p>
           <p class="stat-value">{{ (stats.W_ratio * 100).toFixed(1) }}%</p>
+          <p class="stat-ideal">推荐 2-5%</p>
         </div>
       </div>
       
@@ -142,6 +143,7 @@
         <div class="stat-content">
           <p class="stat-label">REM 睡眠</p>
           <p class="stat-value">{{ (stats.REM_ratio * 100).toFixed(1) }}%</p>
+          <p class="stat-ideal">推荐 20-25%</p>
         </div>
       </div>
       
@@ -150,6 +152,7 @@
         <div class="stat-content">
           <p class="stat-label">浅睡眠</p>
           <p class="stat-value">{{ (stats.Light_ratio * 100).toFixed(1) }}%</p>
+          <p class="stat-ideal">推荐 45-55%</p>
         </div>
       </div>
       
@@ -158,6 +161,7 @@
         <div class="stat-content">
           <p class="stat-label">深睡眠</p>
           <p class="stat-value">{{ (stats.Deep_ratio * 100).toFixed(1) }}%</p>
+          <p class="stat-ideal">推荐 13-23%</p>
         </div>
       </div>
     </div>
@@ -185,6 +189,11 @@ export default {
     }
   },
   computed: {
+    fullRecordDurationHours() {
+      if (!this.data) return 0
+      const totalEpochs = this.data.hypnogram_full?.length ?? this.data.total_epochs ?? 0
+      return totalEpochs * 30 / 3600
+    },
     sleepDurationHours() {
       if (!this.data) return 0
       const epochs = this.data.sleep_offset_epoch - this.data.sleep_onset_epoch
@@ -192,11 +201,16 @@ export default {
     },
     // 计算核心睡眠区间的统计数据
     sleepStats() {
-      if (!this.data || !this.data.sleep_hypnogram_raw) return null
-      
-      const hypnogram = this.data.sleep_hypnogram_raw
+      if (!this.data || !this.data.sleep_hypnogram_raw) return this.data?.stats || null
+
+      const bufferEpochs = 40
+      const rawHypnogram = this.data.sleep_hypnogram_raw
+      const hypnogram = rawHypnogram.length > bufferEpochs * 2
+        ? rawHypnogram.slice(bufferEpochs, rawHypnogram.length - bufferEpochs)
+        : rawHypnogram
       const total = hypnogram.length
-      
+      if (!total) return this.data?.stats || null
+
       return {
         W_ratio: hypnogram.filter(x => x === 0).length / total,
         REM_ratio: hypnogram.filter(x => x === 1).length / total,
@@ -778,6 +792,12 @@ export default {
 }
 
 /* 详细指标卡片 */
+.stat-ideal {
+  margin-top: 0.4rem;
+  font-size: 0.85rem;
+  color: #7b8598;
+}
+
 .metrics-card {
   background: white;
   border-radius: 20px;

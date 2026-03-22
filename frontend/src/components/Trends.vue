@@ -162,11 +162,18 @@ export default {
   },
   beforeUnmount() {
     window.removeEventListener('resize', this.handleResize)
-    this.qualityChart?.dispose()
-    this.durationChart?.dispose()
-    this.structureChart?.dispose()
+    this.disposeCharts()
   },
   methods: {
+    disposeCharts() {
+      this.qualityChart?.dispose()
+      this.durationChart?.dispose()
+      this.structureChart?.dispose()
+      this.qualityChart = null
+      this.durationChart = null
+      this.structureChart = null
+    },
+
     handleResize() {
       this.qualityChart?.resize()
       this.durationChart?.resize()
@@ -174,8 +181,11 @@ export default {
     },
     
     async fetchTrends() {
+      this.disposeCharts()
       this.loading = true
       this.error = null
+      this.summary = null
+      this.chartData = null
       
       const token = localStorage.getItem('token')
       if (!token) {

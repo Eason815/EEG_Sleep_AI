@@ -198,7 +198,6 @@ def _generate_expected_benefits(deep_ratio: float, target_deep_ratio: float) -> 
     benefits = [
         "预计入睡准备时间缩短 10-20 分钟。",
         "预计夜间环境波动减少，有助于提升睡眠连续性。",
-        "更适合答辩演示的智能家居闭环模拟，不依赖真实硬件。",
     ]
     if deep_ratio < target_deep_ratio:
         benefits.insert(1, "预计深睡比例可提升 2%-5%（模拟估计值）。")

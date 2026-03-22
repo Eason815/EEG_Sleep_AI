@@ -8,7 +8,13 @@ import tempfile
 
 
 def _build_core_sleep_stats(core_hypnogram):
-    total_epochs = len(core_hypnogram)
+    buffer_epochs = 40
+    if len(core_hypnogram) > buffer_epochs * 2:
+        effective_hypnogram = core_hypnogram[buffer_epochs:-buffer_epochs]
+    else:
+        effective_hypnogram = core_hypnogram
+
+    total_epochs = len(effective_hypnogram)
     if total_epochs == 0:
         return {
             "W_ratio": 0.0,
@@ -18,10 +24,10 @@ def _build_core_sleep_stats(core_hypnogram):
         }
 
     return {
-        "W_ratio": core_hypnogram.count(0) / total_epochs,
-        "REM_ratio": core_hypnogram.count(1) / total_epochs,
-        "Light_ratio": core_hypnogram.count(2) / total_epochs,
-        "Deep_ratio": core_hypnogram.count(3) / total_epochs,
+        "W_ratio": effective_hypnogram.count(0) / total_epochs,
+        "REM_ratio": effective_hypnogram.count(1) / total_epochs,
+        "Light_ratio": effective_hypnogram.count(2) / total_epochs,
+        "Deep_ratio": effective_hypnogram.count(3) / total_epochs,
     }
 
 

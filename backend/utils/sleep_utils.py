@@ -4,6 +4,8 @@
 import json
 from typing import Dict, Any, Optional
 
+CORE_BUFFER_EPOCHS = 40
+
 
 def parse_result_payload(result_json) -> Dict[str, Any]:
     """解析结果JSON数据"""
@@ -37,20 +39,25 @@ def build_core_sleep_summary(result_data: Dict[str, Any]) -> tuple:
         duration_hours = result_data.get("duration_hours", 0) or 0
         return stats, duration_hours
 
-    total_epochs = len(core_hypnogram)
+    if len(core_hypnogram) > CORE_BUFFER_EPOCHS * 2:
+        effective_hypnogram = core_hypnogram[CORE_BUFFER_EPOCHS:-CORE_BUFFER_EPOCHS]
+    else:
+        effective_hypnogram = core_hypnogram
+
+    total_epochs = len(effective_hypnogram)
     if total_epochs == 0:
         return {
             "W_ratio": 0.0,
             "REM_ratio": 0.0,
             "Light_ratio": 0.0,
             "Deep_ratio": 0.0,
-        }, 0.0
+        }, (result_data.get("duration_hours", 0) or 0.0)
 
     stats = {
-        "W_ratio": core_hypnogram.count(0) / total_epochs,
-        "REM_ratio": core_hypnogram.count(1) / total_epochs,
-        "Light_ratio": core_hypnogram.count(2) / total_epochs,
-        "Deep_ratio": core_hypnogram.count(3) / total_epochs,
+        "W_ratio": effective_hypnogram.count(0) / total_epochs,
+        "REM_ratio": effective_hypnogram.count(1) / total_epochs,
+        "Light_ratio": effective_hypnogram.count(2) / total_epochs,
+        "Deep_ratio": effective_hypnogram.count(3) / total_epochs,
     }
-    duration_hours = round(total_epochs * 30 / 3600, 2)
+    duration_hours = result_data.get("duration_hours", 0) or round(len(core_hypnogram) * 30 / 3600, 2)
     return stats, duration_hours
