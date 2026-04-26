@@ -70,13 +70,21 @@
 
       <!-- 错误提示 -->
       <transition name="fade">
-        <div v-if="errorMessage" class="error-message">
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+        <div
+          v-if="errorMessage"
+          class="status-message"
+          :class="messageType === 'success' ? 'success-message' : 'error-message'"
+        >
+          <svg v-if="messageType === 'success'" width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <circle cx="10" cy="10" r="9" stroke="#38a169" stroke-width="2"/>
+            <path d="M6 10.5l2.5 2.5L14 7.5" stroke="#38a169" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <svg v-else width="20" height="20" viewBox="0 0 20 20" fill="none">
             <circle cx="10" cy="10" r="9" stroke="#f56565" stroke-width="2"/>
             <path d="M10 6v4M10 14h.01" stroke="#f56565" stroke-width="2" stroke-linecap="round"/>
           </svg>
           <p>{{ errorMessage }}</p>
-          <button @click="errorMessage = null" class="close-error">×</button>
+          <button @click="clearMessage" class="close-message">×</button>
         </div>
       </transition>
 
@@ -108,7 +116,8 @@ export default {
       password: '',
       showPassword: false,
       loading: false,
-      errorMessage: null
+      errorMessage: null,
+      messageType: 'error'
     }
   },
   watch: {
@@ -119,13 +128,17 @@ export default {
   methods: {
     toggleMode() {
       this.isLogin = !this.isLogin
+      this.clearMessage()
+    },
+    clearMessage() {
       this.errorMessage = null
+      this.messageType = 'error'
     },
     async handleSubmit() {
       if (this.loading) return
       
       this.loading = true
-      this.errorMessage = null
+      this.clearMessage()
       
       const endpoint = this.isLogin ? '/api/login' : '/api/register'
       const formData = new FormData()
@@ -144,13 +157,16 @@ export default {
             localStorage.setItem('token', data.access_token)
             this.$emit('authenticated', this.username)
           } else {
+            this.messageType = 'success'
             this.errorMessage = '注册成功！请登录'
             this.isLogin = true
           }
         } else {
+          this.messageType = 'error'
           this.errorMessage = data.detail || '操作失败，请重试'
         }
       } catch (e) {
+        this.messageType = 'error'
         this.errorMessage = '网络错误，请检查连接'
       } finally {
         this.loading = false
@@ -315,30 +331,38 @@ export default {
   to { transform: rotate(360deg); }
 }
 
-/* 错误提示 */
-.error-message {
+/* 状态提示 */
+.status-message {
   margin-top: 1rem;
   padding: 0.875rem 1rem;
-  background: #fff5f5;
-  border: 1px solid #feb2b2;
   border-radius: 10px;
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  color: #c53030;
   font-size: 0.9rem;
 }
 
-.error-message p {
+.error-message {
+  background: #fff5f5;
+  border: 1px solid #feb2b2;
+  color: #c53030;
+}
+
+.success-message {
+  background: #f0fff4;
+  border: 1px solid #9ae6b4;
+  color: #2f855a;
+}
+
+.status-message p {
   flex: 1;
   margin: 0;
 }
 
-.close-error {
+.close-message {
   background: none;
   border: none;
   font-size: 1.25rem;
-  color: #c53030;
   cursor: pointer;
   padding: 0;
   width: 24px;
@@ -350,8 +374,20 @@ export default {
   transition: background 0.2s;
 }
 
-.close-error:hover {
+.error-message .close-message {
+  color: #c53030;
+}
+
+.success-message .close-message {
+  color: #2f855a;
+}
+
+.error-message .close-message:hover {
   background: rgba(197, 48, 48, 0.1);
+}
+
+.success-message .close-message:hover {
+  background: rgba(47, 133, 90, 0.12);
 }
 
 /* 切换链接 */

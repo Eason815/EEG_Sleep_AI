@@ -151,6 +151,7 @@ export default {
       error: null,
       summary: null,
       chartData: null,
+      highlightedIndex: null,
       qualityChart: null,
       durationChart: null,
       structureChart: null
@@ -166,6 +167,7 @@ export default {
   },
   methods: {
     disposeCharts() {
+      this.clearLinkedHighlights()
       this.qualityChart?.dispose()
       this.durationChart?.dispose()
       this.structureChart?.dispose()
@@ -186,6 +188,7 @@ export default {
       this.error = null
       this.summary = null
       this.chartData = null
+      this.highlightedIndex = null
       
       const token = localStorage.getItem('token')
       if (!token) {
@@ -212,7 +215,7 @@ export default {
 
         const data = await response.json()
         this.summary = data.summary
-        this.chartData = data.chart_data
+        this.chartData = this.normalizeChartData(data.chart_data, data.records)
         this.loading = false
 
         if (this.summary) {
@@ -239,6 +242,7 @@ export default {
       this.renderQualityChart()
       this.renderDurationChart()
       this.renderStructureChart()
+      this.bindLinkedHoverEvents()
     },
 
     renderQualityChart() {
@@ -248,26 +252,47 @@ export default {
         this.qualityChart = echarts.init(this.$refs.qualityChart)
       }
 
+      const averageScore = Number(this.summary?.avg_quality_score || 0)
+      const qualityRightSpacing = this.getQualityChartRightSpacing()
+      const averageLabelOffset = this.getQualityAverageLabelOffset()
       const option = {
+        animationDurationUpdate: 0,
+        animationEasingUpdate: 'linear',
+        stateAnimation: {
+          duration: 0
+        },
         tooltip: {
-          trigger: 'axis',
+          trigger: 'item',
           backgroundColor: 'rgba(255, 255, 255, 0.95)',
           borderColor: '#ddd',
           borderWidth: 1,
-          textStyle: { color: '#333' }
+          transitionDuration: 0,
+          textStyle: { color: '#333' },
+          formatter: (params) => {
+            const dataIndex = this.extractLinkedDataIndex(params)
+            if (typeof dataIndex !== 'number') {
+              return ''
+            }
+
+            const score = Number(this.chartData.quality_scores?.[dataIndex] || 0)
+            return [
+              this.buildTooltipHeader(dataIndex),
+              `质量分: ${score.toFixed(1)}`
+            ].join('<br/>')
+          }
         },
         grid: {
           left: '3%',
-          right: '4%',
-          bottom: '3%',
-          top: '10%',
+          right: qualityRightSpacing,
+          bottom: '12%',
+          top: '12%',
           containLabel: true
         },
         xAxis: {
           type: 'category',
-          data: this.chartData.dates,
+          data: this.getXAxisLabels(),
           axisLine: { lineStyle: { color: '#ddd' } },
-          axisLabel: { color: '#666', rotate: 30 }
+          axisLabel: { color: '#666', rotate: 30, hideOverlap: true }
         },
         yAxis: {
           type: 'value',
@@ -282,6 +307,9 @@ export default {
           data: this.chartData.quality_scores,
           type: 'line',
           smooth: true,
+          showSymbol: true,
+          symbol: 'circle',
+          symbolSize: 9,
           lineStyle: {
             width: 3,
             color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
@@ -296,11 +324,41 @@ export default {
             ])
           },
           itemStyle: {
-            color: '#667eea'
+            color: '#667eea',
+            borderColor: '#ffffff',
+            borderWidth: 2
+          },
+          emphasis: {
+            scale: true,
+            itemStyle: {
+              borderColor: '#fff',
+              borderWidth: 3
+            },
+            lineStyle: {
+              width: 4
+            }
           },
           markLine: {
-            data: [{ type: 'average', name: '平均值' }],
+            silent: true,
+            symbol: 'none',
+            data: [{ yAxis: averageScore, name: '平均值' }],
+            label: {
+              show: true,
+              position: 'end',
+              offset: averageLabelOffset,
+              align: 'left',
+              verticalAlign: 'bottom',
+              padding: [3, 8],
+              borderRadius: 8,
+              backgroundColor: 'rgba(255, 255, 255, 0.92)',
+              color: '#b45309',
+              fontWeight: 600,
+              formatter: `平均 ${averageScore.toFixed(1)}`
+            },
             lineStyle: { color: '#ed8936', type: 'dashed' }
+          },
+          markPoint: {
+            data: this.buildQualityMarkPoints()
           }
         }]
       }
@@ -316,26 +374,38 @@ export default {
       }
 
       const option = {
+        animationDurationUpdate: 0,
+        animationEasingUpdate: 'linear',
+        stateAnimation: {
+          duration: 0
+        },
         tooltip: {
-          trigger: 'axis',
+          trigger: 'item',
           backgroundColor: 'rgba(255, 255, 255, 0.95)',
           borderColor: '#ddd',
           borderWidth: 1,
+          transitionDuration: 0,
           textStyle: { color: '#333' },
-          formatter: '{b}<br/>睡眠时长: {c} 小时'
+          formatter: (params) => {
+            const duration = Number(params.value || 0)
+            return [
+              this.buildTooltipHeader(params.dataIndex),
+              `睡眠时长: ${this.formatDuration(duration)}`
+            ].join('<br/>')
+          }
         },
         grid: {
           left: '3%',
           right: '4%',
-          bottom: '3%',
-          top: '10%',
+          bottom: '12%',
+          top: '12%',
           containLabel: true
         },
         xAxis: {
           type: 'category',
-          data: this.chartData.dates,
+          data: this.getXAxisLabels(),
           axisLine: { lineStyle: { color: '#ddd' } },
-          axisLabel: { color: '#666', rotate: 30 }
+          axisLabel: { color: '#666', rotate: 30, hideOverlap: true }
         },
         yAxis: {
           type: 'value',
@@ -348,12 +418,29 @@ export default {
           data: this.chartData.durations,
           type: 'bar',
           barWidth: '50%',
+          label: {
+            show: this.period === 'week',
+            position: 'top',
+            color: '#555',
+            fontWeight: 600,
+            formatter: ({ value }) => this.formatDuration(value)
+          },
           itemStyle: {
             color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
               { offset: 0, color: '#667eea' },
               { offset: 1, color: '#764ba2' }
             ]),
-            borderRadius: [4, 4, 0, 0]
+            borderRadius: [4, 4, 0, 0],
+            opacity: 0.72,
+            borderColor: '#ffffff',
+            borderWidth: 1
+          },
+          emphasis: {
+            itemStyle: {
+              opacity: 1,
+              borderColor: '#ffffff',
+              borderWidth: 2
+            }
           }
         }]
       }
@@ -369,36 +456,45 @@ export default {
       }
 
       const option = {
+        animationDurationUpdate: 0,
+        animationEasingUpdate: 'linear',
+        stateAnimation: {
+          duration: 0
+        },
         tooltip: {
-          trigger: 'axis',
+          trigger: 'item',
           backgroundColor: 'rgba(255, 255, 255, 0.95)',
           borderColor: '#ddd',
           borderWidth: 1,
+          transitionDuration: 0,
           textStyle: { color: '#333' },
           formatter: (params) => {
-            let result = params[0].axisValue + '<br/>'
-            params.forEach(item => {
-              result += `${item.marker} ${item.seriesName}: ${(item.value * 100).toFixed(1)}%<br/>`
-            })
-            return result
+            const ratio = Number(params.value || 0)
+            const totalDuration = Number(this.chartData.durations?.[params.dataIndex] || 0)
+            return [
+              this.buildTooltipHeader(params.dataIndex),
+              `${params.marker} ${params.seriesName}`,
+              `占比: ${(ratio * 100).toFixed(1)}%`,
+              `折算时长: ${this.formatDuration(totalDuration * ratio)}`
+            ].join('<br/>')
           }
         },
         legend: {
-          data: ['深睡眠', 'REM睡眠', '浅睡眠'],
+          data: ['深睡眠', 'REM睡眠', '浅睡眠', '清醒'],
           top: 0
         },
         grid: {
           left: '3%',
           right: '4%',
-          bottom: '3%',
-          top: '15%',
+          bottom: '12%',
+          top: '18%',
           containLabel: true
         },
         xAxis: {
           type: 'category',
-          data: this.chartData.dates,
+          data: this.getXAxisLabels(),
           axisLine: { lineStyle: { color: '#ddd' } },
-          axisLabel: { color: '#666', rotate: 30 }
+          axisLabel: { color: '#666', rotate: 30, hideOverlap: true }
         },
         yAxis: {
           type: 'value',
@@ -416,26 +512,375 @@ export default {
             type: 'bar',
             stack: 'total',
             data: this.chartData.deep_ratios,
-            itemStyle: { color: '#4c51bf' }
+            itemStyle: {
+              color: '#2563eb',
+              opacity: 0.62,
+              borderColor: '#ffffff',
+              borderWidth: 1
+            },
+            emphasis: {
+              itemStyle: {
+                opacity: 1,
+                borderColor: '#ffffff',
+                borderWidth: 2
+              }
+            }
           },
           {
             name: 'REM睡眠',
             type: 'bar',
             stack: 'total',
             data: this.chartData.rem_ratios,
-            itemStyle: { color: '#805ad5' }
+            itemStyle: {
+              color: '#8b5cf6',
+              opacity: 0.62,
+              borderColor: '#ffffff',
+              borderWidth: 1
+            },
+            emphasis: {
+              itemStyle: {
+                opacity: 1,
+                borderColor: '#ffffff',
+                borderWidth: 2
+              }
+            }
           },
           {
             name: '浅睡眠',
             type: 'bar',
             stack: 'total',
             data: this.chartData.light_ratios,
-            itemStyle: { color: '#9f7aea' }
+            itemStyle: {
+              color: '#c084fc',
+              opacity: 0.62,
+              borderColor: '#ffffff',
+              borderWidth: 1
+            },
+            emphasis: {
+              itemStyle: {
+                opacity: 1,
+                borderColor: '#ffffff',
+                borderWidth: 2
+              }
+            }
+          },
+          {
+            name: '清醒',
+            type: 'bar',
+            stack: 'total',
+            data: this.chartData.wake_ratios,
+            itemStyle: {
+              color: '#f59e0b',
+              opacity: 0.88,
+              borderColor: '#ffffff',
+              borderWidth: 1.2
+            },
+            emphasis: {
+              itemStyle: {
+                opacity: 1,
+                borderColor: '#ffffff',
+                borderWidth: 2
+              }
+            }
           }
         ]
       }
 
       this.structureChart.setOption(option)
+    },
+
+    formatDuration(hours) {
+      const numericHours = Number(hours)
+      if (Number.isNaN(numericHours) || numericHours < 0) {
+        return '--'
+      }
+
+      const totalMinutes = Math.round(numericHours * 60)
+      const hourPart = Math.floor(totalMinutes / 60)
+      const minutePart = String(totalMinutes % 60).padStart(2, '0')
+      return `${hourPart}:${minutePart}`
+    },
+
+    normalizeChartData(chartData, records = []) {
+      if (!chartData) {
+        return null
+      }
+
+      const normalizeArray = (values) => Array.isArray(values) ? values.map(value => Number(value || 0)) : []
+      const normalizedRecords = Array.isArray(records) ? records : []
+      const recordDates = normalizedRecords.map(record => this.extractRecordDate(record))
+      const recordTimes = normalizedRecords.map(record => this.extractRecordTime(record))
+      const recordWakeRatios = normalizedRecords.map(record => Number(record?.stats?.W_ratio || 0))
+      const dates = Array.isArray(chartData.dates) && chartData.dates.length ? chartData.dates : recordDates
+      const tooltipLabels = Array.isArray(chartData.tooltip_labels) ? chartData.tooltip_labels : []
+      const deepRatios = normalizeArray(chartData.deep_ratios)
+      const remRatios = normalizeArray(chartData.rem_ratios)
+      const lightRatios = normalizeArray(chartData.light_ratios)
+      const providedWakeRatios = normalizeArray(chartData.wake_ratios)
+
+      const timeLabels = Array.isArray(chartData.time_labels) && chartData.time_labels.length
+        ? chartData.time_labels
+        : dates.map((_, index) => recordTimes[index] || this.parseTooltipLabel(index, chartData).timeLabel)
+
+      const wakeRatios = dates.map((_, index) => {
+        const provided = providedWakeRatios[index]
+        if (provided > 0 || chartData.wake_ratios?.[index] === 0) {
+          return provided
+        }
+
+        if (recordWakeRatios[index] > 0 || normalizedRecords[index]?.stats?.W_ratio === 0) {
+          return recordWakeRatios[index]
+        }
+
+        const fallback = 1 - (deepRatios[index] || 0) - (remRatios[index] || 0) - (lightRatios[index] || 0)
+        return Math.max(0, Number(fallback.toFixed(4)))
+      })
+
+      return {
+        ...chartData,
+        dates,
+        tooltip_labels: tooltipLabels,
+        time_labels: timeLabels,
+        deep_ratios: deepRatios,
+        rem_ratios: remRatios,
+        light_ratios: lightRatios,
+        wake_ratios: wakeRatios
+      }
+    },
+
+    extractRecordDate(record) {
+      const explicitDate = record?.date
+      if (explicitDate) {
+        return explicitDate
+      }
+
+      const createdAt = record?.created_at
+      if (!createdAt) {
+        return ''
+      }
+
+      const [datePart = ''] = String(createdAt).split('T')
+      return datePart
+    },
+
+    extractRecordTime(record) {
+      const createdAt = record?.created_at
+      if (!createdAt) {
+        return ''
+      }
+
+      const [, timePart = ''] = String(createdAt).split('T')
+      return timePart.slice(0, 5)
+    },
+
+    getQualityChartRightSpacing() {
+      const count = this.chartData?.quality_scores?.length || 0
+      if (count <= 7) {
+        return 82
+      }
+      if (count <= 15) {
+        return 94
+      }
+      return 106
+    },
+
+    getQualityAverageLabelOffset() {
+      const count = this.chartData?.quality_scores?.length || 0
+      if (count <= 7) {
+        return [10, -10]
+      }
+      if (count <= 15) {
+        return [12, -10]
+      }
+      return [14, -10]
+    },
+
+    getXAxisLabels() {
+      const recordCount = this.chartData?.dates?.length || 0
+      if (recordCount <= 7) {
+        return this.chartData?.dates || []
+      }
+
+      return Array.from({ length: recordCount }, (_, index) => String(index + 1))
+    },
+
+    buildTooltipHeader(dataIndex) {
+      const { dateLabel, timeLabel } = this.parseTooltipLabel(dataIndex)
+      const lines = []
+
+      if (dateLabel) {
+        lines.push(`生成日期: ${dateLabel}`)
+      }
+      if (timeLabel) {
+        lines.push(`生成时间: ${timeLabel}`)
+      }
+
+      return lines.length ? lines.join('<br/>') : `序号 ${dataIndex + 1}`
+    },
+
+    parseTooltipLabel(dataIndex, sourceChartData = this.chartData) {
+      const dateLabel = sourceChartData?.dates?.[dataIndex] || ''
+      const timeLabel = sourceChartData?.time_labels?.[dataIndex] || ''
+      if (dateLabel && timeLabel) {
+        return { dateLabel, timeLabel }
+      }
+
+      const fallbackLabel = sourceChartData?.tooltip_labels?.[dataIndex] || ''
+      if (!fallbackLabel) {
+        return { dateLabel, timeLabel }
+      }
+
+      const [fallbackDate = '', fallbackTime = ''] = String(fallbackLabel).split(' ')
+      return {
+        dateLabel: dateLabel || fallbackDate,
+        timeLabel: timeLabel || fallbackTime
+      }
+    },
+
+    buildQualityMarkPoints() {
+      const scores = this.chartData?.quality_scores || []
+
+      if (!scores.length) {
+        return []
+      }
+
+      const markPoints = []
+      const addedIndices = new Set()
+      const addPoint = (name, index, color) => {
+        if (index < 0 || index >= scores.length || addedIndices.has(index)) {
+          return
+        }
+
+        const value = Number(scores[index])
+        if (Number.isNaN(value)) {
+          return
+        }
+
+        addedIndices.add(index)
+        markPoints.push({
+          name,
+          recordIndex: index,
+          xAxis: index,
+          yAxis: value,
+          value,
+          symbol: 'circle',
+          symbolSize: 16,
+          itemStyle: {
+            color,
+            borderColor: '#fff',
+            borderWidth: 2
+          },
+          label: {
+            show: true,
+            position: 'top',
+            color,
+            fontWeight: 600,
+            formatter: `${value.toFixed(1)}`
+          }
+        })
+      }
+
+      const maxIndex = scores.reduce((bestIndex, currentValue, currentIndex, arr) => {
+        return bestIndex === -1 || currentValue > arr[bestIndex] ? currentIndex : bestIndex
+      }, -1)
+      const minIndex = scores.reduce((bestIndex, currentValue, currentIndex, arr) => {
+        return bestIndex === -1 || currentValue < arr[bestIndex] ? currentIndex : bestIndex
+      }, -1)
+
+      addPoint('最高', maxIndex, '#2563eb')
+      addPoint('最低', minIndex, '#d53f8c')
+      addPoint('最新', scores.length - 1, '#dd6b20')
+
+      return markPoints
+    },
+
+    getChartConfigs() {
+      return [
+        { chart: this.qualityChart, seriesIndices: [0] },
+        { chart: this.durationChart, seriesIndices: [0] },
+        { chart: this.structureChart, seriesIndices: [0, 1, 2, 3] }
+      ].filter(item => item.chart)
+    },
+
+    bindLinkedHoverEvents() {
+      this.getChartConfigs().forEach(({ chart }) => {
+        chart.off('mouseover')
+        chart.off('globalout')
+
+        chart.on('mouseover', (params) => {
+          const dataIndex = this.extractLinkedDataIndex(params)
+          if (typeof dataIndex !== 'number') {
+            return
+          }
+
+          this.highlightLinkedData(dataIndex)
+        })
+
+        chart.on('globalout', () => {
+          this.clearLinkedHighlights()
+        })
+      })
+    },
+
+    extractLinkedDataIndex(params) {
+      if (!params || params.componentType === 'markLine') {
+        return null
+      }
+
+      if (typeof params.data?.recordIndex === 'number') {
+        return params.data.recordIndex
+      }
+
+      return typeof params.dataIndex === 'number' ? params.dataIndex : null
+    },
+
+    highlightLinkedData(dataIndex) {
+      if (typeof dataIndex !== 'number') {
+        return
+      }
+
+      if (this.highlightedIndex === dataIndex) {
+        return
+      }
+
+      this.downplayLinkedData(this.highlightedIndex)
+      this.getChartConfigs().forEach(({ chart, seriesIndices }) => {
+        chart.dispatchAction({
+          type: 'hideTip'
+        })
+        seriesIndices.forEach(seriesIndex => {
+          chart.dispatchAction({
+            type: 'highlight',
+            seriesIndex,
+            dataIndex
+          })
+        })
+      })
+      this.highlightedIndex = dataIndex
+    },
+
+    downplayLinkedData(dataIndex) {
+      if (typeof dataIndex !== 'number') {
+        return
+      }
+
+      this.getChartConfigs().forEach(({ chart, seriesIndices }) => {
+        seriesIndices.forEach(seriesIndex => {
+          chart.dispatchAction({
+            type: 'downplay',
+            seriesIndex,
+            dataIndex
+          })
+        })
+        chart.dispatchAction({
+          type: 'hideTip'
+        })
+      })
+    },
+
+    clearLinkedHighlights() {
+      this.downplayLinkedData(this.highlightedIndex)
+      this.highlightedIndex = null
     },
 
     getScoreClass(score) {
